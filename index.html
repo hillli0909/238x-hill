@@ -120,7 +120,7 @@
     <div class="card">
         <div class="route-header">
             <div class="route-badge" style="background-color: #48484a;">238X</div>
-            <div class="direction-text">放工</br>往 荃灣海濱花園</div>
+            <div class="direction-text">收工</br>往 荃灣海濱花園</div>
         </div>
         <div class="stop-name" style="color: #48484a; background: #e5e5ea;">開出站：中港碼頭總站</div>
         <div class="eta-list" id="eta-term-container">
@@ -147,7 +147,6 @@
         isTerminus: true
     };
 
-    // 🛠️ 修正：正字正確使用 AbortController，放寬超時至 5 秒
     async function fetchWithTimeout(resource, options = {}) {
         const { timeout = 5000 } = options;
         const controller = new AbortController();
@@ -176,7 +175,6 @@
 
             container.innerHTML = '';
 
-            // 實時數據為空（例如尾班車過後）
             if (filteredData.length === 0) {
                 container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (尾班車已過/暫未開出)</div>';
                 return;
@@ -214,7 +212,6 @@
 
         } catch (error) {
             console.error(error);
-            // 發生超時、斷線或 API 故障時，直接顯示提示，拒絕卡死
             container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (請稍後更新)</div>';
         }
     }
@@ -227,9 +224,11 @@
         document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
     }
 
-    // 初始化與每 30 秒自動刷新
+    // 初始化載入
     refreshAllETA();
-    setInterval(refreshAllETA, 30000);
+    
+    // 🛠️ 升級：修改為每 5000 毫秒（5秒）全自動刷新一次
+    setInterval(refreshAllETA, 5000);
 </script>
 
 </body>
