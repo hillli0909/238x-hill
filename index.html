@@ -153,4 +153,117 @@
         23: [0, 15, 30, 40]
     };
     const TIMETABLE_WONG_CHUK_ST_TO_TSIM_SHA_TSUI = {
-        22:
+        22: [10, 25, 40, 55],
+        23: [10, 25, 40, 55]
+    };
+
+    function getFallbackSchedules(isTerminus) {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMin = now.getMinutes();
+        const timetable = isTerminus ? TIMETABLE_TERMINUS_TO_TSUEN_WAN : TIMETABLE_WONG_CHUK_ST_TO_TSIM_SHA_TSUI;
+        
+        let futureBuses = [];
+
+        [currentHour, currentHour + 1].forEach(hour => {
+            if (timetable[hour]) {
+                timetable[hour].forEach(min => {
+                    const busTime = new Date();
+                    busTime.setHours(hour, min, 0, 0);
+                    
+                    if (busTime > now) {
+                        const diffMins = Math.round((busTime - now) / 1000 / 60);
+                        futureBuses.push({
+                            timeStr: `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`,
+                            countdown: diffMins
+                        });
+                    }
+                });
+            }
+        });
+
+        return futureBuses.slice(0, 3);
+    }
+
+    async function fetchETA(config) {
+        const container = document.getElementById(config.container);
+        try {
+            const response = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`);
+            const resData = await response.json();
+            
+            let filteredData = resData.data ? resData.data.filter(item => item.eta) : [];
+
+            container.innerHTML = '';
+
+            // 當 API 沒有實時數據時，啟動時間表並轉化為「XX 分鐘」顯示
+            if (filteredData.length === 0) {
+                const fallbackBuses = getFallbackSchedules(config.isTerminus);
+                
+                if (fallbackBuses.length === 0) {
+                    container.innerHTML = '<div class="loading">服務時間已過 / 暫無班次</div>';
+                    return;
+                }
+
+                fallbackBuses.forEach((bus, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'eta-item';
+                    item.innerHTML = `
+                        <div style="text-align: left;">
+                            <span class="eta-seq">下第 ${index + 1} 班車</span>
+                            <div style="font-size: 0.8rem; color: #007aff; font-weight: normal; margin-top: 2px;">
+                                時間: ${bus.timeStr} (預定)
+                            </div>
+                        </div>
+                        <span class="eta-time">${bus.countdown} 分鐘</span>
+                    `;
+                    container.appendChild(item);
+                });
+                return;
+            }
+
+            // 正常實時 GPS 數據顯示
+            filteredData.sort((a, b) => new Date(a.eta) - new Date(b.eta));
+            const upcomingThree = filteredData.slice(0, 3);
+
+            upcomingThree.forEach((bus, index) => {
+                const etaTime = new Date(bus.eta);
+                const now = new Date();
+                const diffMins = Math.max(0, Math.round((etaTime - now) / 1000 / 60));
+                
+                let displayTime = diffMins <= 0 ? (config.isTerminus ? "即將開出" : "即將抵達") : `${diffMins} 分鐘`;
+                const timeString = etaTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+                const item = document.createElement('div');
+                item.className = 'eta-item';
+                item.innerHTML = `
+                    <div style="text-align: left;">
+                        <span class="eta-seq">下第 ${index + 1} 班車</span>
+                        <div style="font-size: 0.8rem; color: #8e8e93; font-weight: normal; margin-top: 2px;">
+                            預計: ${timeString}
+                        </div>
+                    </div>
+                    <span class="eta-time">${displayTime}</span>
+                `;
+                container.appendChild(item);
+            });
+
+        } catch (error) {
+            console.error(error);
+            container.innerHTML = '<div class="loading" style="color:#ff3b30;">無法獲取資料</div>';
+        }
+    }
+
+    function refreshAllETA() {
+        fetchETA(CONFIG_WONG_CHUK_ST);
+        fetchETA(CONFIG_TERMINUS);
+        
+        const now = new Date();
+        document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
+    }
+
+    refreshAllETA();
+    setInterval(refreshAllETA, 30000);
+</script>
+
+</body>
+</html>
