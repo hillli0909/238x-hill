@@ -133,8 +133,6 @@
 </div>
 
 <script>
-    // 🛠️ 升級：切換至 KMB 官方內部 Web API 數據源
-    // bound=1 代表去程（往中港碼頭），bound=2 代表回程（往荃灣）
     const CONFIG_WONG_CHUK_ST = {
         bound: "1", 
         stopName: "黃竹街", 
@@ -150,14 +148,15 @@
     async function fetchKmbAppETA(config) {
         const container = document.getElementById(config.container);
         try {
-            // 🚀 直連九巴官方專用 WebAPI，獲取最高優先級實時預報
-            const response = await fetch(`https://webapi.kmb.hk/kmbwebapi/api/v1/Service/GetPriceRouteETA?route=238X&bound=${config.bound}`);
-            const resData = await response.json();
+            // 🛠️ 終極修復：加入免費的 allorigins CORS 代理線路，繞過瀏覽器攔截限制
+            const targetUrl = encodeURIComponent(`https://webapi.kmb.hk/kmbwebapi/api/v1/Service/GetPriceRouteETA?route=238X&bound=${config.bound}`);
+            const response = await fetch(`https://api.allorigins.win/get?url=${targetUrl}`);
+            const wrapperData = await response.json();
             
-            // 官方數據結構在 resData.data.response 裡面
+            // allorigins 會把原本的 JSON 變成字串放在 wrapperData.contents 裡面
+            const resData = JSON.parse(wrapperData.contents);
+            
             const allStopsData = resData.data && resData.data.response ? resData.data.response : [];
-            
-            // 篩選出屬於我們指定車站（黃竹街 / 中港碼頭）嘅 ETA 班次
             let stopEtaData = allStopsData.filter(item => item.StopNameCH.includes(config.stopName));
 
             container.innerHTML = '';
@@ -167,15 +166,12 @@
                 return;
             }
 
-            // 擷取前 3 班最快到站/開出嘅班次 (Upcoming 3)
             const upcomingThree = stopEtaData.slice(0, 3);
 
             upcomingThree.forEach((bus, index) => {
-                // 官方內部 API 欄位：Value 代表「倒數分鐘或狀態文字」，ExTime 代表「預計到站時間」
                 let displayTime = bus.Value || "-- 分鐘";
-                let timeString = bus.ExTime ? bus.ExTime.substring(0, 5) : "---"; // 簡化成 22:45 格式
+                let timeString = bus.ExTime ? bus.ExTime.substring(0, 5) : "---";
 
-                // 美化即將到站或開出嘅字眼
                 if (displayTime.includes("即將")) {
                     displayTime = config.bound === "2" ? "即將開出" : "即將抵達";
                 }
@@ -208,6 +204,9 @@
         document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
     }
 
-    // 初次載入與全自動每 30 秒更新
     refreshAllETA();
-    setInterval(refreshAllETA
+    setInterval(refreshAllETA, 30000);
+</script>
+
+</body>
+</html>
