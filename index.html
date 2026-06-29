@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Elaine專屬238X班次表</title>
+    <title>Elaine 專屬 238X 班次表</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -109,7 +109,7 @@
     <div class="card">
         <div class="route-header">
             <div class="route-badge">238X</div>
-            <div class="direction-text">（返工）</br> 往 尖沙咀／中港碼頭</div>
+            <div class="direction-text">返工</br>往 尖沙咀／中港碼頭</div>
         </div>
         <div class="stop-name">📍 上車站：深水埗黃竹街</div>
         <div class="eta-list" id="eta-wf-container">
@@ -120,7 +120,7 @@
     <div class="card">
         <div class="route-header">
             <div class="route-badge" style="background-color: #48484a;">238X</div>
-            <div class="direction-text">（收工）</br> 往 荃灣海濱花園</div>
+            <div class="direction-text">放工</br>往 荃灣海濱花園</div>
         </div>
         <div class="stop-name" style="color: #48484a; background: #e5e5ea;">開出站：中港碼頭總站</div>
         <div class="eta-list" id="eta-term-container">
@@ -147,30 +147,36 @@
         isTerminus: true
     };
 
-    // 🛠️ 建立一個帶有時間限制的 fetch 函數（3秒沒回應就當作超時）
+    // 🛠️ 修正：正字正確使用 AbortController，放寬超時至 5 秒
     async function fetchWithTimeout(resource, options = {}) {
-        const { timeout = 3000 } = options;
-        const controller = new AbController();
+        const { timeout = 5000 } = options;
+        const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
-        const response = await fetch(resource, {
-            ...options,
-            signal: controller.signal  
-        });
-        clearTimeout(id);
-        return response;
+        
+        try {
+            const response = await fetch(resource, {
+                ...options,
+                signal: controller.signal  
+            });
+            clearTimeout(id);
+            return response;
+        } catch (err) {
+            clearTimeout(id);
+            throw err;
+        }
     }
 
     async function fetchETA(config) {
         const container = document.getElementById(config.container);
         try {
-            // 使用新寫的超時機制，避免九巴伺服器裝死導致網頁無限 Loading
-            const response = await fetchWithTimeout(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`, { timeout: 3000 });
+            const response = await fetchWithTimeout(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`, { timeout: 5000 });
             const resData = await response.json();
             
             let filteredData = resData.data ? resData.data.filter(item => item.eta) : [];
 
             container.innerHTML = '';
 
+            // 實時數據為空（例如尾班車過後）
             if (filteredData.length === 0) {
                 container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (尾班車已過/暫未開出)</div>';
                 return;
@@ -208,7 +214,7 @@
 
         } catch (error) {
             console.error(error);
-            // 🛠️ 只要斷線、超時或發生任何錯誤，立刻跳轉顯示，絕不卡死
+            // 發生超時、斷線或 API 故障時，直接顯示提示，拒絕卡死
             container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (請稍後更新)</div>';
         }
     }
@@ -221,6 +227,7 @@
         document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
     }
 
+    // 初始化與每 30 秒自動刷新
     refreshAllETA();
     setInterval(refreshAllETA, 30000);
 </script>
