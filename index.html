@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>238X 專屬 3 班次看板</title>
+    <title>238X 專屬 3 班次看板 (官方同步版)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -113,7 +113,7 @@
         </div>
         <div class="stop-name">📍 上車站：深水埗黃竹街</div>
         <div class="eta-list" id="eta-wf-container">
-            <div class="loading">正在連線九巴 API...</div>
+            <div class="loading">正在同步九巴 App 數據...</div>
         </div>
     </div>
 
@@ -124,7 +124,7 @@
         </div>
         <div class="stop-name" style="color: #48484a; background: #e5e5ea;">開出站：中港碼頭總站</div>
         <div class="eta-list" id="eta-term-container">
-            <div class="loading">正在連線九巴 API...</div>
+            <div class="loading">正在同步九巴 App 數據...</div>
         </div>
     </div>
 
@@ -133,60 +133,51 @@
 </div>
 
 <script>
+    // 🛠️ 升級：切換至 KMB 官方內部 Web API 數據源
+    // bound=1 代表去程（往中港碼頭），bound=2 代表回程（往荃灣）
     const CONFIG_WONG_CHUK_ST = {
-        stopId: "4995BA92A1BB4716", 
-        dir: "O",
+        bound: "1", 
+        stopName: "黃竹街", 
         container: "eta-wf-container"
     };
 
     const CONFIG_TERMINUS = {
-        stopId: "0E79796033A0372F", 
-        dir: "I",
+        bound: "2", 
+        stopName: "中港碼頭", 
         container: "eta-term-container"
     };
 
-    async function fetchETA(config) {
+    async function fetchKmbAppETA(config) {
         const container = document.getElementById(config.container);
         try {
-            const response = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`);
+            // 🚀 直連九巴官方專用 WebAPI，獲取最高優先級實時預報
+            const response = await fetch(`https://webapi.kmb.hk/kmbwebapi/api/v1/Service/GetPriceRouteETA?route=238X&bound=${config.bound}`);
             const resData = await response.json();
             
-            // 🛠️ 關鍵優化：不再只篩選 item.eta！因為總站未開嘅車只有 rmk_tc（備註）
-            let rawData = resData.data || [];
+            // 官方數據結構在 resData.data.response 裡面
+            const allStopsData = resData.data && resData.data.response ? resData.data.response : [];
+            
+            // 篩選出屬於我們指定車站（黃竹街 / 中港碼頭）嘅 ETA 班次
+            let stopEtaData = allStopsData.filter(item => item.StopNameCH.includes(config.stopName));
 
             container.innerHTML = '';
 
-            if (rawData.length === 0) {
+            if (stopEtaData.length === 0) {
                 container.innerHTML = '<div class="loading">現時沒有班次資料</div>';
                 return;
             }
 
-            // 按照班次序號 (data_seq) 排序，確保頭 3 班依次排列
-            rawData.sort((a, b) => a.eta_seq - b.eta_seq);
-
-            // 擷取頭 3 班車
-            const upcomingThree = rawData.slice(0, 3);
+            // 擷取前 3 班最快到站/開出嘅班次 (Upcoming 3)
+            const upcomingThree = stopEtaData.slice(0, 3);
 
             upcomingThree.forEach((bus, index) => {
-                let displayTime = "-- 分鐘";
-                let timeString = "未有資料";
+                // 官方內部 API 欄位：Value 代表「倒數分鐘或狀態文字」，ExTime 代表「預計到站時間」
+                let displayTime = bus.Value || "-- 分鐘";
+                let timeString = bus.ExTime ? bus.ExTime.substring(0, 5) : "---"; // 簡化成 22:45 格式
 
-                if (bus.eta) {
-                    // 如果已經有即時 GPS 倒數
-                    const etaTime = new Date(bus.eta);
-                    const now = new Date();
-                    const diffMins = Math.max(0, Math.round((etaTime - now) / 1000 / 60));
-                    
-                    displayTime = diffMins <= 0 ? (config.dir === "I" ? "即將開出" : "即將抵達") : `${diffMins} 分鐘`;
-                    timeString = etaTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                } else if (bus.rmk_tc && bus.rmk_tc.includes("定期班次")) {
-                    // 🛠️ 專為起點總站而設：如果未有實時 GPS，直接抓取原定開車時間
-                    displayTime = "預定班次";
-                    // 抽取文字中的時間，例如從 "定期班次 22:40" 提取 "22:40"
-                    timeString = bus.rmk_tc.replace("定期班次 ", "");
-                } else if (bus.rmk_tc) {
-                    displayTime = bus.rmk_tc;
-                    timeString = "---";
+                // 美化即將到站或開出嘅字眼
+                if (displayTime.includes("即將")) {
+                    displayTime = config.bound === "2" ? "即將開出" : "即將抵達";
                 }
 
                 const item = document.createElement('div');
@@ -198,7 +189,7 @@
                             時間: ${timeString}
                         </div>
                     </div>
-                    <span class="eta-time" style="${displayTime === '預定班次' ? 'color: #007aff; font-size: 1.1rem;' : ''}">${displayTime}</span>
+                    <span class="eta-time" style="${displayTime.includes('預定') ? 'color: #007aff; font-size: 1.1rem;' : ''}">${displayTime}</span>
                 `;
                 container.appendChild(item);
             });
@@ -210,16 +201,13 @@
     }
 
     function refreshAllETA() {
-        fetchETA(CONFIG_WONG_CHUK_ST);
-        fetchETA(CONFIG_TERMINUS);
+        fetchKmbAppETA(CONFIG_WONG_CHUK_ST);
+        fetchKmbAppETA(CONFIG_TERMINUS);
         
         const now = new Date();
         document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
     }
 
+    // 初次載入與全自動每 30 秒更新
     refreshAllETA();
-    setInterval(refreshAllETA, 30000);
-</script>
-
-</body>
-</html>
+    setInterval(refreshAllETA
