@@ -134,13 +134,13 @@
 
 <script>
     const CONFIG_WONG_CHUK_ST = {
-        stopId: "0A3205AE9FA026C1", 
+        stopId: "4995BA92A1BB4716", // 黃竹街往尖沙咀方向正確 ID
         dir: "O",
         container: "eta-wf-container"
     };
 
     const CONFIG_TERMINUS = {
-        stopId: "69A1EA87A8DFD4D8", 
+        stopId: "0E79796033A0372F", // 🛠️ 終極修正：中港碼頭總站「往荃灣方向上客站」真正 ID
         dir: "I",
         container: "eta-term-container"
     };
@@ -148,11 +148,9 @@
     async function fetchETA(config) {
         const container = document.getElementById(config.container);
         try {
-            // 🛠️ 終極修正：將最後的 /1 換成特定方向 /O 或 /I，完全符合九巴 API 規範
             const response = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`);
             const resData = await response.json();
             
-            // 篩選出有時間的有效數據
             let filteredData = resData.data.filter(item => item.eta);
 
             container.innerHTML = '';
@@ -162,10 +160,8 @@
                 return;
             }
 
-            // 按照到站時間排序
             filteredData.sort((a, b) => new Date(a.eta) - new Date(b.eta));
 
-            // 只截取最快到站的 3 班車 (Upcoming 3)
             const upcomingThree = filteredData.slice(0, 3);
 
             upcomingThree.forEach((bus, index) => {
@@ -200,7 +196,6 @@
         }
     }
 
-    // 刷新全部
     function refreshAllETA() {
         fetchETA(CONFIG_WONG_CHUK_ST);
         fetchETA(CONFIG_TERMINUS);
