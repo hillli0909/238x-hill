@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>238X 專屬 3 班次看板 (無敵補底版)</title>
+    <title>238X 專屬 3 班次看板 (倒數補底版)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -133,7 +133,6 @@
 </div>
 
 <script>
-    // 轉回穩定、無跨網攔截限制的政府開放數據 API 路線
     const CONFIG_WONG_CHUK_ST = {
         stopId: "4995BA92A1BB4716", 
         dir: "O",
@@ -148,119 +147,10 @@
         isTerminus: true
     };
 
-    // 🛠️ 238X 深夜固定時間表（20-30分鐘內補底用）
-    // 格式為小時: [分鐘, 分鐘...]
+    // 238X 深夜固定時間表
     const TIMETABLE_TERMINUS_TO_TSUEN_WAN = {
         22: [0, 15, 30, 45],
-        23: [0, 15, 30, 40]  // 23:40 尾班車
+        23: [0, 15, 30, 40]
     };
     const TIMETABLE_WONG_CHUK_ST_TO_TSIM_SHA_TSUI = {
-        22: [10, 25, 40, 55],
-        23: [10, 25, 40, 55]  // 預估深夜通過黃竹街時間
-    };
-
-    function getFallbackSchedules(isTerminus) {
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMin = now.getMinutes();
-        const timetable = isTerminus ? TIMETABLE_TERMINUS_TO_TSUEN_WAN : TIMETABLE_WONG_CHUK_ST_TO_TSIM_SHA_TSUI;
-        
-        let futureBuses = [];
-
-        // 檢查今個鐘同下個鐘嘅時間表
-        [currentHour, currentHour + 1].forEach(hour => {
-            if (timetable[hour]) {
-                timetable[hour].forEach(min => {
-                    if (hour > currentHour || (hour === currentHour && min > currentMin)) {
-                        futureBuses.push({ hour, min });
-                    }
-                });
-            }
-        });
-
-        return futureBuses.slice(0, 3);
-    }
-
-    async function fetchETA(config) {
-        const container = document.getElementById(config.container);
-        try {
-            const response = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`);
-            const resData = await response.json();
-            
-            let filteredData = resData.data ? resData.data.filter(item => item.eta) : [];
-
-            container.innerHTML = '';
-
-            // 🛠️ 核心精髓：如果 API 傳回空數據 []，立刻啟動時間表補底機制！
-            if (filteredData.length === 0) {
-                const fallbackBuses = getFallbackSchedules(config.isTerminus);
-                
-                if (fallbackBuses.length === 0) {
-                    container.innerHTML = '<div class="loading">服務時間已過 / 暫無班次</div>';
-                    return;
-                }
-
-                fallbackBuses.forEach((bus, index) => {
-                    const timeStr = `${String(bus.hour).padStart(2, '0')}:${String(bus.min).padStart(2, '0')}`;
-                    const item = document.createElement('div');
-                    item.className = 'eta-item';
-                    item.innerHTML = `
-                        <div style="text-align: left;">
-                            <span class="eta-seq">下第 ${index + 1} 班車</span>
-                            <div style="font-size: 0.8rem; color: #8e8e93; font-weight: normal; margin-top: 2px;">
-                                時間: ${timeStr}
-                            </div>
-                        </div>
-                        <span class="eta-time" style="color: #007aff; font-size: 1.1rem;">預定班次</span>
-                    `;
-                    container.appendChild(item);
-                });
-                return;
-            }
-
-            // 如果有實時 API 數據，正常處理
-            filteredData.sort((a, b) => new Date(a.eta) - new Date(b.eta));
-            const upcomingThree = filteredData.slice(0, 3);
-
-            upcomingThree.forEach((bus, index) => {
-                const etaTime = new Date(bus.eta);
-                const now = new Date();
-                const diffMins = Math.max(0, Math.round((etaTime - now) / 1000 / 60));
-                
-                let displayTime = diffMins <= 0 ? (config.isTerminus ? "即將開出" : "即將抵達") : `${diffMins} 分鐘`;
-                const timeString = etaTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-
-                const item = document.createElement('div');
-                item.className = 'eta-item';
-                item.innerHTML = `
-                    <div style="text-align: left;">
-                        <span class="eta-seq">下第 ${index + 1} 班車</span>
-                        <div style="font-size: 0.8rem; color: #8e8e93; font-weight: normal; margin-top: 2px;">
-                            預計: ${timeString}
-                        </div>
-                    </div>
-                    <span class="eta-time">${displayTime}</span>
-                `;
-                container.appendChild(item);
-            });
-
-        } catch (error) {
-            console.error(error);
-            container.innerHTML = '<div class="loading" style="color:#ff3b30;">連線中，請稍後...</div>';
-        }
-    }
-
-    function refreshAllETA() {
-        fetchETA(CONFIG_WONG_CHUK_ST);
-        fetchETA(CONFIG_TERMINUS);
-        
-        const now = new Date();
-        document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
-    }
-
-    refreshAllETA();
-    setInterval(refreshAllETA, 30000);
-</script>
-
-</body>
-</html>
+        22:
