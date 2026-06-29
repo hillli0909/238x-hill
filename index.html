@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>238X 專屬 3 班次看板 (100% 實時版)</title>
+    <title>238X 專屬 3 班次看板 (防卡死版)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -147,11 +147,83 @@
         isTerminus: true
     };
 
+    // 🛠️ 建立一個帶有時間限制的 fetch 函數（3秒沒回應就當作超時）
+    async function fetchWithTimeout(resource, options = {}) {
+        const { timeout = 3000 } = options;
+        const controller = new AbController();
+        const id = setTimeout(() => controller.abort(), timeout);
+        const response = await fetch(resource, {
+            ...options,
+            signal: controller.signal  
+        });
+        clearTimeout(id);
+        return response;
+    }
+
     async function fetchETA(config) {
         const container = document.getElementById(config.container);
         try {
-            const response = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`);
+            // 使用新寫的超時機制，避免九巴伺服器裝死導致網頁無限 Loading
+            const response = await fetchWithTimeout(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`, { timeout: 3000 });
             const resData = await response.json();
             
-            // 100% 唯信官方有發佈 eta 欄位的實時 GPS 數據
-            let filteredData = resData.data ? resData.data.
+            let filteredData = resData.data ? resData.data.filter(item => item.eta) : [];
+
+            container.innerHTML = '';
+
+            if (filteredData.length === 0) {
+                container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (尾班車已過/暫未開出)</div>';
+                return;
+            }
+
+            filteredData.sort((a, b) => new Date(a.eta) - new Date(b.eta));
+            const upcomingThree = filteredData.slice(0, 3);
+
+            upcomingThree.forEach((bus, index) => {
+                const etaTime = new Date(bus.eta);
+                const now = new Date();
+                const diffMins = Math.max(0, Math.round((etaTime - now) / 1000 / 60));
+                
+                let displayTime = diffMins <= 0 ? (config.isTerminus ? "即將開出" : "即將抵達") : `${diffMins} 分鐘`;
+                const timeString = etaTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+                let remarkText = `預計: ${timeString}`;
+                if (bus.rmk_tc && bus.rmk_tc.includes("定期班次")) {
+                    remarkText = `原定開出: ${bus.rmk_tc.replace("定期班次 ", "")}`;
+                }
+
+                const item = document.createElement('div');
+                item.className = 'eta-item';
+                item.innerHTML = `
+                    <div style="text-align: left;">
+                        <span class="eta-seq">下第 ${index + 1} 班車</span>
+                        <div style="font-size: 0.8rem; color: #8e8e93; font-weight: normal; margin-top: 2px;">
+                            ${remarkText}
+                        </div>
+                    </div>
+                    <span class="eta-time">${displayTime}</span>
+                `;
+                container.appendChild(item);
+            });
+
+        } catch (error) {
+            console.error(error);
+            // 🛠️ 只要斷線、超時或發生任何錯誤，立刻跳轉顯示，絕不卡死
+            container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (請稍後更新)</div>';
+        }
+    }
+
+    function refreshAllETA() {
+        fetchETA(CONFIG_WONG_CHUK_ST);
+        fetchETA(CONFIG_TERMINUS);
+        
+        const now = new Date();
+        document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
+    }
+
+    refreshAllETA();
+    setInterval(refreshAllETA, 30000);
+</script>
+
+</body>
+</html>
