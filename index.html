@@ -8,45 +8,24 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            background-color: #f2f2f7;
-            color: #1c1c1e;
-            padding: 20px 15px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            justify-content: center;
+            background-color: #f2f2f7; color: #1c1c1e; padding: 20px 15px;
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh; justify-content: center;
         }
         .container { width: 100%; max-width: 400px; }
         .card {
-            background: #ffffff;
-            border-radius: 24px;
-            padding: 25px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
-            border: 1px solid #e5e5ea;
-            text-align: center;
+            background: #ffffff; border-radius: 24px; padding: 25px; margin-bottom: 20px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05); border: 1px solid #e5e5ea; text-align: center;
         }
         .route-header { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 15px; }
         .route-badge {
-            background-color: #e1251b;
-            color: white;
-            font-size: 2.2rem;
-            font-weight: 900;
-            padding: 4px 18px;
-            border-radius: 12px;
+            background-color: #e1251b; color: white; font-size: 2.2rem; font-weight: 900;
+            padding: 4px 18px; border-radius: 12px;
         }
         .direction-text { font-size: 1.2rem; font-weight: 700; color: #1c1c1e; text-align: left; }
         .direction-text span { font-size: 0.9rem; color: #8e8e93; font-weight: 500; display: block; }
         .stop-name {
-            font-size: 1.05rem;
-            font-weight: 600;
-            color: #007aff;
-            background: #e1f0ff;
-            padding: 6px 12px;
-            border-radius: 20px;
-            display: inline-block;
-            margin-bottom: 15px;
+            font-size: 1.05rem; font-weight: 600; color: #007aff; background: #e1f0ff;
+            padding: 6px 12px; border-radius: 20px; display: inline-block; margin-bottom: 15px;
         }
         .eta-list { display: flex; flex-direction: column; gap: 10px; }
         .eta-item {
@@ -59,7 +38,6 @@
             width: 100%; background-color: #007aff; color: white; border: none; padding: 14px;
             border-radius: 14px; font-size: 1.1rem; font-weight: 600; cursor: pointer;
         }
-        .btn-refresh:active { background-color: #0056b3; }
         .last-update { text-align: center; font-size: 0.8rem; color: #aeaeae; margin-top: 15px; }
         .loading { color: #8e8e93; text-align: center; padding: 15px 0; font-style: italic; }
         .status-bar { text-align: center; font-size: 0.7rem; color: #c7c7cc; margin-top: 5px; }
@@ -96,54 +74,84 @@
 </div>
 
 <script>
-    // 👑 經排查後 100% 絕對正確的官方真實雙站配置
-    const stopWF = "833DE523F16B97C3"; // 238X 專屬黃竹街正解 ID！
-    const stopSH = "0E79796033A0372F"; // 中港碼頭總站
+    const stopWF = "833DE523F16B97C3"; // 黃竹街專屬 ID
+    const stopSH = "0E79796033A0372F"; // 中港碼頭
 
-    function updateCard(url, containerId, isTerminus) {
-        const box = document.getElementById(containerId);
+    function renderList(list, box, isTerminus) {
+        box.innerHTML = '';
+        list.sort((a, b) => new Date(a.eta) - new Date(b.eta));
+        const topThree = list.slice(0, 3);
+
+        topThree.forEach((bus, i) => {
+            const diff = Math.max(0, Math.round((new Date(bus.eta) - new Date()) / 60000));
+            let showMins = diff <= 0 ? (isTerminus ? "即將開出" : "即將抵達") : diff + " 分鐘";
+            const div = document.createElement('div');
+            div.className = 'eta-item';
+            div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span></div><span class="eta-time">' + showMins + '</span>';
+            box.appendChild(div);
+        });
+    }
+
+    function updateWongChukStreet() {
+        const box = document.getElementById('eta-wf');
         const status = document.getElementById('status-tag');
-
-        fetch(url)
-            .then(response => response.json())
+        
+        // 🚀 第一保險：先衝單站 API
+        fetch("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopWF + "/238X/O")
+            .then(r => r.json())
             .then(res => {
-                const list = res.data ? res.data.filter(b => b.eta) : [];
-                box.innerHTML = '';
-
+                let list = res.data ? res.data.filter(b => b.eta) : [];
+                
+                // 💡 如果單站 API 吐出空數據，立刻觸活動態過濾第二保險！
                 if (list.length === 0) {
-                    box.innerHTML = '<div class="loading">⌛ 暫無實時班次 (尾班車已過)</div>';
-                    return;
+                    status.innerText = "觸發全線雷達追蹤...";
+                    fetch("https://data.etabus.gov.hk/v1/transport/kmb/route-eta/238X")
+                        .then(r => r.json())
+                        .then(routeRes => {
+                            let allData = routeRes.data || [];
+                            // 用精準的黃竹街專屬 ID 進行本地篩選
+                            let filtered = allData.filter(b => b.dir === "O" && b.stop === stopWF && b.eta);
+                            
+                            if (filtered.length === 0) {
+                                box.innerHTML = '<div class="loading">⌛ 暫無實時班次 (尾班車已過)</div>';
+                                status.innerText = "九巴確認現時無班次";
+                            } else {
+                                renderList(filtered, box, false);
+                                status.innerText = "透過全線雷達直連成功";
+                            }
+                        });
+                } else {
+                    renderList(list, box, false);
+                    status.innerText = "九巴單站直連成功";
                 }
-
-                list.sort((a, b) => new Date(a.eta) - new Date(b.eta));
-                const topThree = list.slice(0, 3);
-
-                topThree.forEach((bus, i) => {
-                    const diff = Math.max(0, Math.round((new Date(bus.eta) - new Date()) / 60000));
-                    let showMins = diff <= 0 ? (isTerminus ? "即將開出" : "即將抵達") : diff + " 分鐘";
-                    
-                    const div = document.createElement('div');
-                    div.className = 'eta-item';
-                    div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span></div><span class="eta-time">' + showMins + '</span>';
-                    box.appendChild(div);
-                });
-                status.innerText = "九巴數據直連同步成功";
             })
             .catch(err => {
-                console.error(err);
-                status.innerText = "網絡嘗試中...";
+                status.innerText = "連線重試中...";
+            });
+    }
+
+    function updateTerminus() {
+        const box = document.getElementById('eta-sh');
+        fetch("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopSH + "/238X/I")
+            .then(r => r.json())
+            .then(res => {
+                const list = res.data ? res.data.filter(b => b.eta) : [];
+                if (list.length === 0) {
+                    box.innerHTML = '<div class="loading">⌛ 暫無實時班次</div>';
+                    return;
+                }
+                renderList(list, box, true);
             });
     }
 
     function refreshAll() {
-        updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopWF + "/238X/O", "eta-wf", false);
-        updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopSH + "/238X/I", "eta-sh", true);
+        updateWongChukStreet();
+        updateTerminus();
         document.getElementById('time-tag').innerText = "最後更新: " + new Date().toLocaleTimeString();
     }
 
-    // 啟動與自動刷新
     refreshAll();
-    setInterval(refreshAll, 10000); // 每 10 秒自動刷新
+    setInterval(refreshAll, 10000);
 </script>
 
 </body>
