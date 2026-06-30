@@ -142,16 +142,17 @@
 </div>
 
 <script>
+    // 🛠️ 終極修復：將九巴官方嘅方向 dir 進行對調 (O 變 I，I 變 O)
     const CONFIG_WONG_CHUK_ST = {
         stopId: "4995BA92A1BB4716", 
-        dir: "O",
+        dir: "I", // 修正：深水埗黃竹街往尖沙咀，官方定義是 Inbound (I)
         container: "eta-wf-container",
         isTerminus: false
     };
 
     const CONFIG_TERMINUS = {
         stopId: "0E79796033A0372F", 
-        dir: "I",
+        dir: "O", // 修正：中港碼頭總站往荃灣，官方定義是 Outbound (O)
         container: "eta-term-container",
         isTerminus: true
     };
@@ -179,12 +180,9 @@
         const debugLog = document.getElementById('debug-log');
         
         const targetUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`;
-        
-        // 🛠️ 策略優化：如果直連被拒，自動提供一個乾淨的快取跳轉機制
         const cleanUrl = `${targetUrl}?t=${new Date().getTime()}`;
 
         try {
-            // 首先嘗試 100% 直連（順便帶上時間戳破除 GitHub 舊快取）
             const response = await fetchWithTimeout(cleanUrl, { timeout: 5000 });
             const resData = await response.json();
             
@@ -225,12 +223,10 @@
                 `;
                 container.appendChild(item);
             });
-            debugLog.innerText = "直連成功，數據同步中";
+            debugLog.innerText = "數據已成功直連更新";
 
         } catch (error) {
-            console.log("直連失敗，啟用備用通道:", error);
-            
-            // 🛠️ 備用方案：如果直連受限，立即改用萬能備用包裝通道
+            console.log("直連受阻，切換備用快取通道...");
             try {
                 const backupUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&rand=${Math.random()}`;
                 const response = await fetchWithTimeout(backupUrl, { timeout: 6000 });
@@ -273,11 +269,11 @@
                     `;
                     container.appendChild(item);
                 });
-                debugLog.innerText = "備用代理通道連接成功";
+                debugLog.innerText = "代理通道連接成功";
 
             } catch (backupError) {
                 console.error(backupError);
-                debugLog.innerText = "連線超時，請檢查網絡";
+                debugLog.innerText = "連線失敗，請稍後再試";
                 container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (請稍後更新)</div>';
             }
         }
@@ -291,9 +287,4 @@
         document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
     }
 
-    refreshAllETA();
-    setInterval(refreshAllETA, 5000);
-</script>
-
-</body>
-</html>
+    refresh
