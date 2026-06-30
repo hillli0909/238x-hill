@@ -138,25 +138,27 @@
 
     <button class="btn-refresh" onclick="refreshAllETA()">🔄 立即更新班次</button>
     <div class="last-update" id="timestamp">正在獲取數據...</div>
-    <div class="debug-info" id="debug-log">直連初始化</div>
+    <div class="debug-info" id="debug-log">系統初始化中...</div>
 </div>
 
 <script>
-    // 🛠️ 重新對正：黃竹街（往尖沙咀）是 O，中港碼頭（往荃灣）是 I
+    // 🛠️ 100% 對正：黃竹街（往尖沙咀）是 O，中港碼頭（往荃灣）是 I
     const CONFIG_WONG_CHUK_ST = {
-        stopId: "1EA4E5F522432BD1", // 修正：黃竹街（長沙灣道往九龍方向）的官方實體 Stop ID
+        stopId: "1EA4E5F522432BD1", // 238X 真正有停靠的黃竹街（長沙灣道往尖沙咀方向）官方 ID
         dir: "O", 
-        container: "eta-wf-container"
+        container: "eta-wf-container",
+        isTerminus: false
     };
 
     const CONFIG_TERMINUS = {
         stopId: "0E79796033A0372F", // 中港碼頭總站
         dir: "I", 
-        container: "eta-term-container"
+        container: "eta-term-container",
+        isTerminus: true
     };
 
     async function fetchWithTimeout(resource, options = {}) {
-        const { timeout = 3000 } = options;
+        const { timeout = 4000 } = options;
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
         
@@ -177,10 +179,10 @@
         const container = document.getElementById(config.container);
         const debugLog = document.getElementById('debug-log');
         
-        const targetUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}?rand=${Math.random()}`;
+        const targetUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}?t=${new Date().getTime()}`;
 
         try {
-            const response = await fetchWithTimeout(targetUrl, { timeout: 3000 });
+            const response = await fetchWithTimeout(targetUrl, { timeout: 4000 });
             const resData = await response.json();
             
             let filteredData = resData.data ? resData.data.filter(item => item.eta) : [];
@@ -199,7 +201,7 @@
                 const now = new Date();
                 const diffMins = Math.max(0, Math.round((etaTime - now) / 1000 / 60));
                 
-                let displayTime = diffMins <= 0 ? (config.dir === "I" ? "即將開出" : "即將抵達") : `${diffMins} 分鐘`;
+                let displayTime = diffMins <= 0 ? (config.isTerminus ? "即將開出" : "即將抵達") : `${diffMins} 分鐘`;
                 const timeString = etaTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
                 let remarkText = `預計: ${timeString}`;
@@ -220,12 +222,12 @@
                 `;
                 container.appendChild(item);
             });
-            debugLog.innerText = "九巴官方直連更新成功";
+            debugLog.innerText = "九巴官方直連同步成功";
 
         } catch (error) {
             console.error(error);
-            debugLog.innerText = "連線受阻，正自動嘗試重連";
-            container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (請重新整理)</div>';
+            debugLog.innerText = "重新獲取數據中...";
+            container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 讀取班次失敗 (請點擊更新重試)</div>';
         }
     }
 
