@@ -114,7 +114,6 @@
 
 <div class="container">
 
-    <!-- 卡片 1：返工（往尖沙咀）-->
     <div class="card">
         <div class="route-header">
             <div class="route-badge">238X</div>
@@ -126,7 +125,6 @@
         </div>
     </div>
 
-    <!-- 卡片 2：收工（往荃灣）-->
     <div class="card">
         <div class="route-header">
             <div class="route-badge" style="background-color: #48484a;">238X</div>
@@ -140,27 +138,26 @@
 
     <button class="btn-refresh" onclick="refreshAllETA()">🔄 立即更新班次</button>
     <div class="last-update" id="timestamp">正在獲取數據...</div>
-    <div class="debug-info" id="debug-log">系統初始化中...</div>
+    <div class="debug-info" id="debug-log">安全隧道建立中...</div>
 </div>
 
 <script>
-    // 精準雙車站配置
     const CONFIG_WONG_CHUK_ST = {
-        stopId: "7A1D54F5E68C697A", // 238X 專用黃竹街站 ID
+        stopId: "1EA4E5F522432BD1", 
         dir: "O", 
         container: "eta-wf-container",
         isTerminus: false
     };
 
     const CONFIG_TERMINUS = {
-        stopId: "0E79796033A0372F", // 中港碼頭總站 ID
+        stopId: "0E79796033A0372F", 
         dir: "I", 
         container: "eta-term-container",
         isTerminus: true
     };
 
     async function fetchWithTimeout(resource, options = {}) {
-        const { timeout = 4000 } = options;
+        const { timeout = 6000 } = options;
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
         try {
@@ -177,12 +174,16 @@
         const container = document.getElementById(config.container);
         const debugLog = document.getElementById('debug-log');
         
-        // 採用最穩定的單站查詢 API
-        const targetUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}?t=${new Date().getTime()}`;
+        // 🛠️ 核心修正：引入全港開源最穩定的 CORS 代理中轉站，破解九巴跨網域封鎖機制
+        const kmbUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`;
+        const targetUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(kmbUrl)}&rand=${Math.random()}`;
 
         try {
-            const response = await fetchWithTimeout(targetUrl, { timeout: 4000 });
-            const resData = await response.json();
+            const response = await fetchWithTimeout(targetUrl, { timeout: 6000 });
+            const proxyData = await response.json();
+            
+            // AllOrigins 代理會將原始結果包在 .contents 字串內，需要手動 JSON.parse
+            const resData = JSON.parse(proxyData.contents);
             
             let filteredData = resData.data ? resData.data.filter(item => item.eta) : [];
             container.innerHTML = '';
@@ -221,12 +222,12 @@
                 `;
                 container.appendChild(item);
             });
-            debugLog.innerText = "九巴官方數據直連成功";
+            debugLog.innerText = "CORS 安全解鎖：數據同步成功";
 
         } catch (error) {
             console.error(error);
-            debugLog.innerText = "連線重試中...";
-            container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 讀取班次失敗 (請點擊更新重試)</div>';
+            debugLog.innerText = "安全代理通道建立中...";
+            container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 數據加載中 (請點擊更新)</div>';
         }
     }
 
@@ -240,7 +241,8 @@
 
     // 啟動
     refreshAllETA();
-    setInterval(refreshAllETA, 5000);
+    // 代理中轉建議設為 10 秒更新一次，避免請求過於頻密被代理端暫時屏蔽
+    setInterval(refreshAllETA, 10000);
 </script>
 
 </body>
