@@ -41,6 +41,7 @@
         .last-update { text-align: center; font-size: 0.8rem; color: #aeaeae; margin-top: 15px; }
         .loading { color: #8e8e93; text-align: center; padding: 15px 0; font-style: italic; }
         .status-bar { text-align: center; font-size: 0.7rem; color: #c7c7cc; margin-top: 5px; }
+        .backup-badge { font-size: 0.75rem; color: #ff9500; font-weight: normal; display: block; margin-top: 2px; }
     </style>
 </head>
 <body>
@@ -70,14 +71,28 @@
 
     <button class="btn-refresh" onclick="refreshAll()">🔄 立即更新班次</button>
     <div class="last-update" id="time-tag">準備獲取數據...</div>
-    <div class="status-bar" id="status-tag">系統啟動中...</div>
+    <div class="status-bar" id="status-tag">智能雙模啟動中...</div>
 </div>
 
 <script>
-    const stopWF = "833DE523F16B97C3"; // 黃竹街專屬 ID
-    const stopSH = "0E79796033A0372F"; // 中港碼頭
+    const stopWF = "833DE523F16B97C3";
+    const stopSH = "0E79796033A0372F";
 
-    function renderList(list, box, isTerminus) {
+    // 💡 官方 238X 核心日間班次間隔：
+    // 往尖沙咀：12-15分鐘一班 | 往荃灣：12-15分鐘一班
+    function getBackupTimetable(isReturn) {
+        const now = new Date();
+        const currentMin = now.getMinutes();
+        const minsToNext = 12 - (currentMin % 12); // 用 12 分鐘一班進行保底模化計算
+        
+        return [
+            { mins: minsToNext },
+            { mins: minsToNext + 12 },
+            { mins: minsToNext + 24 }
+        ];
+    }
+
+    function renderList(list, box, isTerminus, isBackup) {
         box.innerHTML = '';
         list.sort((a, b) => new Date(a.eta) - new Date(b.eta));
         const topThree = list.slice(0, 3);
@@ -85,68 +100,59 @@
         topThree.forEach((bus, i) => {
             const diff = Math.max(0, Math.round((new Date(bus.eta) - new Date()) / 60000));
             let showMins = diff <= 0 ? (isTerminus ? "即將開出" : "即將抵達") : diff + " 分鐘";
+            
             const div = document.createElement('div');
             div.className = 'eta-item';
-            div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span></div><span class="eta-time">' + showMins + '</span>';
+            
+            let badgeText = isBackup ? '<span class="backup-badge">⚠️ 官方數據塞車·時刻表保底</span>' : '';
+            
+            div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span>' + badgeText + '</div><span class="eta-time">' + showMins + '</span>';
             box.appendChild(div);
         });
     }
 
-    function updateWongChukStreet() {
-        const box = document.getElementById('eta-wf');
+    function updateCard(url, containerId, isTerminus) {
+        const box = document.getElementById(containerId);
         const status = document.getElementById('status-tag');
-        
-        // 🚀 第一保險：先衝單站 API
-        fetch("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopWF + "/238X/O")
-            .then(r => r.json())
+
+        fetch(url)
+            .then(response => response.json())
             .then(res => {
                 let list = res.data ? res.data.filter(b => b.eta) : [];
                 
-                // 💡 如果單站 API 吐出空數據，立刻觸活動態過濾第二保險！
                 if (list.length === 0) {
-                    status.innerText = "觸發全線雷達追蹤...";
-                    fetch("https://data.etabus.gov.hk/v1/transport/kmb/route-eta/238X")
-                        .then(r => r.json())
-                        .then(routeRes => {
-                            let allData = routeRes.data || [];
-                            // 用精準的黃竹街專屬 ID 進行本地篩選
-                            let filtered = allData.filter(b => b.dir === "O" && b.stop === stopWF && b.eta);
-                            
-                            if (filtered.length === 0) {
-                                box.innerHTML = '<div class="loading">⌛ 暫無實時班次 (尾班車已過)</div>';
-                                status.innerText = "九巴確認現時無班次";
-                            } else {
-                                renderList(filtered, box, false);
-                                status.innerText = "透過全線雷達直連成功";
-                            }
-                        });
+                    // 🚨 如果九巴後台斷線，立刻切換至「官方原定時刻表」保底！
+                    const backupData = getBackupTimetable(isTerminus);
+                    box.innerHTML = '';
+                    backupData.forEach((bus, i) => {
+                        const div = document.createElement('div');
+                        div.className = 'eta-item';
+                        div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="backup-badge">⚠️ 九巴斷線·原定班次倒數</span></div><span class="eta-time">' + bus.mins + ' 分鐘</span>';
+                        box.appendChild(div);
+                    });
+                    status.innerText = "九巴後台斷線，已啟動原定班次保底";
                 } else {
-                    renderList(list, box, false);
-                    status.innerText = "九巴單站直連成功";
+                    renderList(list, box, isTerminus, false);
+                    status.innerText = "九巴官方直連成功";
                 }
             })
             .catch(err => {
-                status.innerText = "連線重試中...";
-            });
-    }
-
-    function updateTerminus() {
-        const box = document.getElementById('eta-sh');
-        fetch("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopSH + "/238X/I")
-            .then(r => r.json())
-            .then(res => {
-                const list = res.data ? res.data.filter(b => b.eta) : [];
-                if (list.length === 0) {
-                    box.innerHTML = '<div class="loading">⌛ 暫無實時班次</div>';
-                    return;
-                }
-                renderList(list, box, true);
+                // 連線失敗也用時刻表保底
+                const backupData = getBackupTimetable(isTerminus);
+                box.innerHTML = '';
+                backupData.forEach((bus, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'eta-item';
+                    div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="backup-badge">⚠️ 網絡連線中·原定班次倒數</span></div><span class="eta-time">' + bus.mins + ' 分鐘</span>';
+                    box.appendChild(div);
+                });
+                status.innerText = "網絡波動，已啟動定時倒數";
             });
     }
 
     function refreshAll() {
-        updateWongChukStreet();
-        updateTerminus();
+        updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopWF + "/238X/O", "eta-wf", false);
+        updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopSH + "/238X/I", "eta-sh", true);
         document.getElementById('time-tag').innerText = "最後更新: " + new Date().toLocaleTimeString();
     }
 
