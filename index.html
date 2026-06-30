@@ -50,7 +50,7 @@
             font-size: 1.2rem;
             font-weight: 700;
             color: #1c1c1e;
-            line-height: 1.3; /* 優化換行間距 */
+            line-height: 1.3;
         }
         .direction-text span {
             font-size: 0.9rem;
@@ -175,8 +175,15 @@
     async function fetchETA(config) {
         const container = document.getElementById(config.container);
         try {
-            const response = await fetchWithTimeout(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`, { timeout: 5000 });
-            const resData = await response.json();
+            // 🛠️ 升級：加入公用 CORS Proxy 代理，防止瀏覽器阻截九巴數據
+            const targetUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`;
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+            
+            const response = await fetchWithTimeout(proxyUrl, { timeout: 5000 });
+            const proxyData = await response.json();
+            
+            // 解析由 Proxy 傳回嘅包裝 JSON
+            const resData = JSON.parse(proxyData.contents);
             
             let filteredData = resData.data ? resData.data.filter(item => item.eta) : [];
 
@@ -231,10 +238,7 @@
         document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
     }
 
-    // 初始化載入
     refreshAllETA();
-    
-    // 每 5000 毫秒（5秒）全自動刷新一次
     setInterval(refreshAllETA, 5000);
 </script>
 
