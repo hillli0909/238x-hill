@@ -17,10 +17,7 @@
             min-height: 100vh;
             justify-content: center;
         }
-        .container {
-            width: 100%;
-            max-width: 400px;
-        }
+        .container { width: 100%; max-width: 400px; }
         .card {
             background: #ffffff;
             border-radius: 24px;
@@ -30,13 +27,7 @@
             border: 1px solid #e5e5ea;
             text-align: center;
         }
-        .route-header {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 15px;
-        }
+        .route-header { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 15px; }
         .route-badge {
             background-color: #e1251b;
             color: white;
@@ -44,20 +35,9 @@
             font-weight: 900;
             padding: 4px 18px;
             border-radius: 12px;
-            letter-spacing: -1px;
         }
-        .direction-text {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #1c1c1e;
-            line-height: 1.3;
-        }
-        .direction-text span {
-            font-size: 0.9rem;
-            color: #8e8e93;
-            font-weight: 500;
-            display: block;
-        }
+        .direction-text { font-size: 1.2rem; font-weight: 700; color: #1c1c1e; text-align: left; }
+        .direction-text span { font-size: 0.9rem; color: #8e8e93; font-weight: 500; display: block; }
         .stop-name {
             font-size: 1.05rem;
             font-weight: 600;
@@ -68,84 +48,33 @@
             display: inline-block;
             margin-bottom: 15px;
         }
-        .eta-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+        .eta-list { display: flex; flex-direction: column; gap: 10px; }
         .eta-item {
-            background: #f8f8fa;
-            border-radius: 12px;
-            padding: 14px 18px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid #f2f2f7;
+            background: #f8f8fa; border-radius: 12px; padding: 14px 18px; font-size: 1.1rem; font-weight: 700;
+            display: flex; justify-content: space-between; align-items: center; border: 1px solid #f2f2f7;
         }
-        .eta-seq {
-            color: #48484a;
-            font-size: 0.95rem;
-        }
-        .eta-time {
-            color: #e1251b;
-            font-size: 1.2rem;
-        }
+        .eta-seq { color: #48484a; font-size: 0.95rem; }
+        .eta-time { color: #e1251b; font-size: 1.2rem; }
         .btn-refresh {
-            width: 100%;
-            background-color: #007aff;
-            color: white;
-            border: none;
-            padding: 14px;
-            border-radius: 14px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
+            width: 100%; background-color: #007aff; color: white; border: none; padding: 14px;
+            border-radius: 14px; font-size: 1.1rem; font-weight: 600; cursor: pointer;
         }
-        .btn-refresh:active { background-color: #0056b3; }
         .last-update { text-align: center; font-size: 0.8rem; color: #aeaeae; margin-top: 15px; }
         .loading { color: #8e8e93; text-align: center; padding: 15px 0; font-style: italic; }
-        .debug-info { text-align: center; font-size: 0.7rem; color: #c7c7cc; margin-top: 5px; }
-        
-        /* 💡 代理未激活提示框 */
-        .activation-box {
-            display: none;
-            background: #fff3cd;
-            border: 1px solid #ffeeba;
-            color: #856404;
-            padding: 15px;
-            border-radius: 14px;
-            font-size: 0.9rem;
-            margin-bottom: 15px;
-            text-align: left;
-            line-height: 1.4;
-        }
-        .activation-box a {
-            color: #0056b3;
-            font-weight: bold;
-            text-decoration: underline;
-        }
+        .status-bar { text-align: center; font-size: 0.7rem; color: #c7c7cc; margin-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-
-    <div class="activation-box" id="act-box">
-        ⚠️ <b>第一次使用請先開通通道：</b><br>
-        請點擊此處 <a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank">👉 進入開通頁面</a>，點擊網頁中間的 <b>"Request temporary access to some demo server"</b> 大按鈕，然後返回本頁重新整理即可！
-    </div>
-
     <div class="card">
         <div class="route-header">
             <div class="route-badge">238X</div>
             <div class="direction-text"><span>💼 返工</span>往 尖沙咀／中港碼頭</div>
         </div>
         <div class="stop-name">📍 上車站：深水埗黃竹街</div>
-        <div class="eta-list" id="eta-wf-container">
-            <div class="loading">正在獲取實時班次...</div>
+        <div class="eta-list" id="eta-wf">
+            <div class="loading">正在連線九巴...</div>
         </div>
     </div>
 
@@ -155,110 +84,65 @@
             <div class="direction-text"><span>🏠 收工</span>往 荃灣海濱花園</div>
         </div>
         <div class="stop-name" style="color: #48484a; background: #e5e5ea;">開出站：中港碼頭總站</div>
-        <div class="eta-list" id="eta-term-container">
-            <div class="loading">正在獲取實時班次...</div>
+        <div class="eta-list" id="eta-sh">
+            <div class="loading">正在連線九巴...</div>
         </div>
     </div>
 
-    <button class="btn-refresh" onclick="refreshAllETA()">🔄 立即更新班次</button>
-    <div class="last-update" id="timestamp">正在獲取數據...</div>
-    <div class="debug-info" id="debug-log">通道準備中...</div>
+    <button class="btn-refresh" onclick="refreshAll()">🔄 立即更新班次</button>
+    <div class="last-update" id="time-tag">準備獲取數據...</div>
+    <div class="status-bar" id="status-tag">系統啟動中...</div>
 </div>
 
 <script>
-    // 車站配置
-    const CONFIG_WONG_CHUK_ST = {
-        stopId: "1EA4E5F522432BD1", 
-        dir: "O", 
-        container: "eta-wf-container",
-        isTerminus: false
-    };
+    // 🛠️ 官方對應：黃竹街往尖沙咀是 O，中港碼頭往荃灣是 I
+    const stopWF = "1EA4E5F522432BD1";
+    const stopSH = "0E79796033A0372F";
 
-    const CONFIG_TERMINUS = {
-        stopId: "0E79796033A0372F", 
-        dir: "I", 
-        container: "eta-term-container",
-        isTerminus: true
-    };
+    function updateCard(url, containerId, isTerminus) {
+        const box = document.getElementById(containerId);
+        const status = document.getElementById('status-tag');
 
-    async function fetchETA(config) {
-        const container = document.getElementById(config.container);
-        const debugLog = document.getElementById('debug-log');
-        const actBox = document.getElementById('act-box');
-        
-        // 使用最權威的官方 CORS 代理伺服器
-        const kmbUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`;
-        const targetUrl = `https://cors-anywhere.herokuapp.com/${kmbUrl}`;
+        fetch(url)
+            .then(response => response.json())
+            .then(res => {
+                const list = res.data ? res.data.filter(b => b.eta) : [];
+                box.innerHTML = '';
 
-        try {
-            const response = await fetch(targetUrl);
-            
-            // 如果代理伺服器回傳 403 或者是特定文字，代表需要激活
-            if (response.status === 403) {
-                actBox.style.display = "block";
-                debugLog.innerText = "請先點擊上方黃色框框開通權限";
-                container.innerHTML = '<div class="loading" style="color:#d9534f; font-style: normal;">❌ 請點擊上方黃色框開通</div>';
-                return;
-            }
-
-            const resData = await response.json();
-            actBox.style.display = "none"; // 成功拿到就隱藏提示框
-            
-            let filteredData = resData.data ? resData.data.filter(item => item.eta) : [];
-            container.innerHTML = '';
-
-            if (filteredData.length === 0) {
-                container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (尾班車已過/暫未開出)</div>';
-                return;
-            }
-
-            filteredData.sort((a, b) => new Date(a.eta) - new Date(b.eta));
-            const upcomingThree = filteredData.slice(0, 3);
-
-            upcomingThree.forEach((bus, index) => {
-                const etaTime = new Date(bus.eta);
-                const now = new Date();
-                const diffMins = Math.max(0, Math.round((etaTime - now) / 1000 / 60));
-                
-                let displayTime = diffMins <= 0 ? (config.isTerminus ? "即將開出" : "即將抵達") : `${diffMins} 分鐘`;
-                const timeString = etaTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-
-                let remarkText = `預計: ${timeString}`;
-                if (bus.rmk_tc && bus.rmk_tc.includes("定期班次")) {
-                    remarkText = `原定開出: ${bus.rmk_tc.replace("定期班次 ", "")}`;
+                if (list.length === 0) {
+                    box.innerHTML = '<div class="loading">⌛ 暫無實時班次</div>';
+                    return;
                 }
 
-                const item = document.createElement('div');
-                item.className = 'eta-item';
-                item.innerHTML = `
-                    <div style="text-align: left;">
-                        <span class="eta-seq">下第 ${index + 1} 班車</span>
-                        <div style="font-size: 0.8rem; color: #8e8e93; font-weight: normal; margin-top: 2px;">
-                            ${remarkText}
-                        </div>
-                    </div>
-                    <span class="eta-time">${displayTime}</span>
-                `;
-                container.appendChild(item);
+                list.sort((a, b) => new Date(a.eta) - new Date(b.eta));
+                const topThree = list.slice(0, 3);
+
+                topThree.forEach((bus, i) => {
+                    const diff = Math.max(0, Math.round((new Date(bus.eta) - new Date()) / 60000));
+                    let showMins = diff <= 0 ? (isTerminus ? "即將開出" : "即將抵達") : diff + " 分鐘";
+                    
+                    const div = document.createElement('div');
+                    div.className = 'eta-item';
+                    div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span></div><span class="eta-time">' + showMins + '</span>';
+                    box.appendChild(div);
+                });
+                status.innerText = "九巴官方直連成功";
+            })
+            .catch(err => {
+                console.error(err);
+                status.innerText = "網絡嘗試中...";
             });
-            debugLog.innerText = "專屬高速通道：數據對接成功";
-
-        } catch (error) {
-            console.error(error);
-            debugLog.innerText = "網絡連接失敗，請檢查網絡";
-        }
     }
 
-    function refreshAllETA() {
-        fetchETA(CONFIG_WONG_CHUK_ST);
-        fetchETA(CONFIG_TERMINUS);
-        
-        const now = new Date();
-        document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
+    function refreshAll() {
+        updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopWF + "/238X/O", "eta-wf", false);
+        updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopSH + "/238X/I", "eta-sh", true);
+        document.getElementById('time-tag').innerText = "最後更新: " + new Date().toLocaleTimeString();
     }
 
-    refreshAllETA();
-    setInterval(refreshAllETA, 10000); // 高速穩定代理，10秒自動刷新一次
+    // 執行
+    refreshAll();
+    setInterval(refreshAll, 10000);
 </script>
 
 </body>
