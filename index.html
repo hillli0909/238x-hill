@@ -114,6 +114,7 @@
 
 <div class="container">
 
+    <!-- 卡片 1：返工（往尖沙咀）-->
     <div class="card">
         <div class="route-header">
             <div class="route-badge">238X</div>
@@ -125,6 +126,7 @@
         </div>
     </div>
 
+    <!-- 卡片 2：收工（往荃灣）-->
     <div class="card">
         <div class="route-header">
             <div class="route-badge" style="background-color: #48484a;">238X</div>
@@ -142,16 +144,16 @@
 </div>
 
 <script>
-    // 🛠️ 100% 對正：黃竹街（往尖沙咀）是 O，中港碼頭（往荃灣）是 I
+    // 精準雙車站配置
     const CONFIG_WONG_CHUK_ST = {
-        stopId: "1EA4E5F522432BD1", // 238X 真正有停靠的黃竹街（長沙灣道往尖沙咀方向）官方 ID
+        stopId: "7A1D54F5E68C697A", // 238X 專用黃竹街站 ID
         dir: "O", 
         container: "eta-wf-container",
         isTerminus: false
     };
 
     const CONFIG_TERMINUS = {
-        stopId: "0E79796033A0372F", // 中港碼頭總站
+        stopId: "0E79796033A0372F", // 中港碼頭總站 ID
         dir: "I", 
         container: "eta-term-container",
         isTerminus: true
@@ -161,12 +163,8 @@
         const { timeout = 4000 } = options;
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
-        
         try {
-            const response = await fetch(resource, {
-                ...options,
-                signal: controller.signal  
-            });
+            const response = await fetch(resource, { ...options, signal: controller.signal });
             clearTimeout(id);
             return response;
         } catch (err) {
@@ -179,6 +177,7 @@
         const container = document.getElementById(config.container);
         const debugLog = document.getElementById('debug-log');
         
+        // 採用最穩定的單站查詢 API
         const targetUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}?t=${new Date().getTime()}`;
 
         try {
@@ -222,11 +221,11 @@
                 `;
                 container.appendChild(item);
             });
-            debugLog.innerText = "九巴官方直連同步成功";
+            debugLog.innerText = "九巴官方數據直連成功";
 
         } catch (error) {
             console.error(error);
-            debugLog.innerText = "重新獲取數據中...";
+            debugLog.innerText = "連線重試中...";
             container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 讀取班次失敗 (請點擊更新重試)</div>';
         }
     }
@@ -239,6 +238,7 @@
         document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
     }
 
+    // 啟動
     refreshAllETA();
     setInterval(refreshAllETA, 5000);
 </script>
