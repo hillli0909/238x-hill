@@ -142,19 +142,19 @@
 </div>
 
 <script>
+    // 🛠️ 重新對正：黃竹街（往尖沙咀）是 O，中港碼頭（往荃灣）是 I
     const CONFIG_WONG_CHUK_ST = {
-        stopId: "4995BA92A1BB4716", 
-        dir: "I", 
+        stopId: "1EA4E5F522432BD1", // 修正：黃竹街（長沙灣道往九龍方向）的官方實體 Stop ID
+        dir: "O", 
         container: "eta-wf-container"
     };
 
     const CONFIG_TERMINUS = {
-        stopId: "0E79796033A0372F", 
-        dir: "O", 
+        stopId: "0E79796033A0372F", // 中港碼頭總站
+        dir: "I", 
         container: "eta-term-container"
     };
 
-    // 🛠️ 終極修復：硬性限制 3 秒超時，一旦不回應立刻斬斷
     async function fetchWithTimeout(resource, options = {}) {
         const { timeout = 3000 } = options;
         const controller = new AbortController();
@@ -177,7 +177,6 @@
         const container = document.getElementById(config.container);
         const debugLog = document.getElementById('debug-log');
         
-        // 🛠️ 採用 100% 乾淨直連政府 API 機制，加上隨機數破除舊快取
         const targetUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}?rand=${Math.random()}`;
 
         try {
@@ -200,7 +199,7 @@
                 const now = new Date();
                 const diffMins = Math.max(0, Math.round((etaTime - now) / 1000 / 60));
                 
-                let displayTime = diffMins <= 0 ? (config.dir === "O" ? "即將開出" : "即將抵達") : `${diffMins} 分鐘`;
+                let displayTime = diffMins <= 0 ? (config.dir === "I" ? "即將開出" : "即將抵達") : `${diffMins} 分鐘`;
                 const timeString = etaTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
                 let remarkText = `預計: ${timeString}`;
@@ -224,7 +223,7 @@
             debugLog.innerText = "九巴官方直連更新成功";
 
         } catch (error) {
-            console.error("連線超時或異常:", error);
+            console.error(error);
             debugLog.innerText = "連線受阻，正自動嘗試重連";
             container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (請重新整理)</div>';
         }
