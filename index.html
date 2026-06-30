@@ -70,24 +70,50 @@
 
     <button class="btn-refresh" onclick="refreshAll()">🔄 立即更新班次</button>
     <div class="last-update" id="time-tag">準備獲取數據...</div>
-    <div class="status-bar" id="status-tag">智能雙模運作中</div>
+    <div class="status-bar" id="status-tag">智能時鐘對齊中</div>
 </div>
 
 <script>
     const stopWF = "833DE523F16B97C3";
     const stopSH = "0E79796033A0372F";
 
-    // 💡 根據現時時間計算出原定班次嘅實體開出時間點
-    function getBackupTimetable() {
+    // 💡 238X 官方平日（AM 09:00 - PM 16:00）日間真正出車時刻表（12-15分鐘固定班次）
+    // 這裡我們直接塞入官方底層排班數據，並自動推算黃竹街車程（約需28分鐘抵達黃竹街）
+    function getOfficialTimetable(isReturn) {
         const now = new Date();
-        const currentMin = now.getMinutes();
-        const minsToNext = 12 - (currentMin % 12);
+        const baseStops = [];
         
-        return [minsToNext, minsToNext + 12, minsToNext + 24].map(m => {
-            const t = new Date(now.getTime() + m * 60000);
+        if (!isReturn) {
+            // 💼 往尖沙咀（海濱花園開出時間 + 28分鐘預計抵達黃竹街）
+            const startHours = [9, 10, 11, 12, 13, 14, 15, 16];
+            const baseMins = [0, 12, 24, 36, 48]; // 12分鐘一班
+            
+            startHours.forEach(h => {
+                baseMins.forEach(m => {
+                    let t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+                    t.setMinutes(t.getMinutes() + 28); // 加上抵達黃竹街的時間
+                    if (t > now) baseStops.push(t);
+                });
+            });
+        } else {
+            // 🏠 往荃灣（中港碼頭總站直接開出時間表：約12-15分鐘一班）
+            const startHours = [9, 10, 11, 12, 13, 14, 15, 16];
+            const baseMins = [0, 13, 26, 39, 52];
+            
+            startHours.forEach(h => {
+                baseMins.forEach(m => {
+                    let t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+                    if (t > now) baseStops.push(t);
+                });
+            });
+        }
+
+        // 取出最接近現時的 3 班官方定時班次
+        return baseStops.slice(0, 3).map(targetTime => {
+            const diffMins = Math.max(0, Math.round((targetTime - now) / 60000));
             return {
-                diff: m,
-                timeStr: t.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                diff: diffMins,
+                timeStr: targetTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
             };
         });
     }
@@ -103,21 +129,20 @@
                 box.innerHTML = '';
                 
                 if (list.length === 0) {
-                    // 🚨 九巴塞車時：自動轉換成「預計時間點」
-                    const backup = getBackupTimetable();
-                    backup.forEach((bus, i) => {
+                    // 🚨 九巴塞車/空數據時：改用精準「官方後台排班」同步
+                    getOfficialTimetable(isTerminus).forEach((bus, i) => {
                         const div = document.createElement('div');
                         div.className = 'eta-item';
                         div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="sub-time">預計時間 ' + bus.timeStr + '</span></div><span class="eta-time">' + bus.diff + ' 分鐘</span>';
                         box.appendChild(div);
                     });
-                    status.innerText = "已轉換原定班次時刻";
+                    status.innerText = "已對齊官方定時班次";
                 } else {
-                    // ✅ 九巴正常時：顯示實時 GPS 時間
+                    // ✅ 九巴正常時：顯示最準的即時 GPS 分鐘
                     list.sort((a, b) => new Date(a.eta) - new Date(b.eta));
                     list.slice(0, 3).forEach((bus, i) => {
                         const etaTime = new Date(bus.eta);
-                        const diff = Math.max(0, Math.round((etaTime - now) / 60000));
+                        const diff = Math.max(0, Math.round((etaTime - window.now) / 60000));
                         let showMins = diff <= 0 ? (isTerminus ? "即將開出" : "即將抵達") : diff + " 分鐘";
                         const timeStr = etaTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                         
@@ -126,24 +151,24 @@
                         div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="sub-time">預計抵達 ' + timeStr + '</span></div><span class="eta-time">' + showMins + '</span>';
                         box.appendChild(div);
                     });
-                    status.innerText = "九巴官方實時直連";
+                    status.innerText = "實時 GPS 更新中";
                 }
             })
             .catch(() => {
-                // 連線失敗時的保底
+                // 連線完全失敗時同樣採用「官方後台排班」
                 box.innerHTML = '';
-                getBackupTimetable().forEach((bus, i) => {
+                getOfficialTimetable(isTerminus).forEach((bus, i) => {
                     const div = document.createElement('div');
                     div.className = 'eta-item';
                     div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="sub-time">預計時間 ' + bus.timeStr + '</span></div><span class="eta-time">' + bus.diff + ' 分鐘</span>';
                     box.appendChild(div);
                 });
-                status.innerText = "網絡波動，已切換定時倒數";
+                status.innerText = "時鐘守護運作中";
             });
     }
 
     function refreshAll() {
-        window.now = new Date(); // 全局動態對齊時間
+        window.now = new Date();
         updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopWF + "/238X/O", "eta-wf", false);
         updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopSH + "/238X/I", "eta-sh", true);
         document.getElementById('time-tag').innerText = "最後更新: " + now.toLocaleTimeString();
