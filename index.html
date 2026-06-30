@@ -138,7 +138,7 @@
 
     <button class="btn-refresh" onclick="refreshAllETA()">🔄 立即更新班次</button>
     <div class="last-update" id="timestamp">正在獲取數據...</div>
-    <div class="debug-info" id="debug-log">安全隧道建立中...</div>
+    <div class="debug-info" id="debug-log">雙通道直連初始化...</div>
 </div>
 
 <script>
@@ -156,8 +156,14 @@
         isTerminus: true
     };
 
+    // 🛠️ 備用 Proxy 清單：如果一個死咗，立刻用第二個，徹底解決卡死問題
+    const PROXIES = [
+        (url) => `https://thingproxy.freeboard.io/fetch/${url}`,
+        (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&rand=${Math.random()}`
+    ];
+
     async function fetchWithTimeout(resource, options = {}) {
-        const { timeout = 6000 } = options;
+        const { timeout = 3000 } = options;
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
         try {
@@ -170,21 +176,30 @@
         }
     }
 
+    async function tryFetchWithProxies(kmbUrl) {
+        // 嘗試第一個代理
+        try {
+            const response = await fetchWithTimeout(PROXIES[0](kmbUrl), { timeout: 3000 });
+            const res = await response.json();
+            // 如果是 thingproxy，直接回傳 res，如果是 allorigins 需要額外 parse
+            return res.data ? res : JSON.parse(res.contents);
+        } catch (e) {
+            console.warn("第一代理失效，啟動極速後備方案...");
+            // 第一個失敗，立刻切換至第二個代理
+            const response = await fetchWithTimeout(PROXIES[1](kmbUrl), { timeout: 3500 });
+            const res = await response.json();
+            return res.data ? res : JSON.parse(res.contents);
+        }
+    }
+
     async function fetchETA(config) {
         const container = document.getElementById(config.container);
         const debugLog = document.getElementById('debug-log');
         
-        // 🛠️ 核心修正：引入全港開源最穩定的 CORS 代理中轉站，破解九巴跨網域封鎖機制
         const kmbUrl = `https://data.etabus.gov.hk/v1/transport/kmb/eta/${config.stopId}/238X/${config.dir}`;
-        const targetUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(kmbUrl)}&rand=${Math.random()}`;
 
         try {
-            const response = await fetchWithTimeout(targetUrl, { timeout: 6000 });
-            const proxyData = await response.json();
-            
-            // AllOrigins 代理會將原始結果包在 .contents 字串內，需要手動 JSON.parse
-            const resData = JSON.parse(proxyData.contents);
-            
+            const resData = await tryFetchWithProxies(kmbUrl);
             let filteredData = resData.data ? resData.data.filter(item => item.eta) : [];
             container.innerHTML = '';
 
@@ -222,12 +237,12 @@
                 `;
                 container.appendChild(item);
             });
-            debugLog.innerText = "CORS 安全解鎖：數據同步成功";
+            debugLog.innerText = "智能雙通道：數據對接完成";
 
         } catch (error) {
             console.error(error);
-            debugLog.innerText = "安全代理通道建立中...";
-            container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 數據加載中 (請點擊更新)</div>';
+            debugLog.innerText = "網絡波動，正在重組安全通道...";
+            container.innerHTML = '<div class="loading" style="color:#8e8e93; font-style: normal;">⌛ 暫無實時班次 (請重新整理)</div>';
         }
     }
 
@@ -239,10 +254,9 @@
         document.getElementById('timestamp').innerText = `最後更新: ${now.toLocaleTimeString()}`;
     }
 
-    // 啟動
     refreshAllETA();
-    // 代理中轉建議設為 10 秒更新一次，避免請求過於頻密被代理端暫時屏蔽
-    setInterval(refreshAllETA, 10000);
+    // 雙通道自動更新頻率定為 8 秒
+    setInterval(refreshAllETA, 8000);
 </script>
 
 </body>
