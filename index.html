@@ -3,159 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Elaine 專屬 238X 班次表</title>
+    <title>238X 官方後台數據排查</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            background-color: #f2f2f7; color: #1c1c1e; padding: 20px 15px;
-            display: flex; flex-direction: column; align-items: center; min-height: 100vh; justify-content: center;
-        }
-        .container { width: 100%; max-width: 400px; }
-        .card {
-            background: #ffffff; border-radius: 24px; padding: 25px; margin-bottom: 20px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05); border: 1px solid #e5e5ea; text-align: center;
-        }
-        .route-header { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 15px; }
-        .route-badge {
-            background-color: #e1251b; color: white; font-size: 2.2rem; font-weight: 900;
-            padding: 4px 18px; border-radius: 12px;
-        }
-        .direction-text { font-size: 1.2rem; font-weight: 700; color: #1c1c1e; text-align: left; }
-        .direction-text span { font-size: 0.9rem; color: #8e8e93; font-weight: 500; display: block; }
-        .stop-name {
-            font-size: 1.05rem; font-weight: 600; color: #007aff; background: #e1f0ff;
-            padding: 6px 12px; border-radius: 20px; display: inline-block; margin-bottom: 15px;
-        }
-        .eta-list { display: flex; flex-direction: column; gap: 10px; }
-        .eta-item {
-            background: #f8f8fa; border-radius: 12px; padding: 14px 18px; font-size: 1.1rem; font-weight: 700;
-            display: flex; justify-content: space-between; align-items: center; border: 1px solid #f2f2f7;
-        }
-        .eta-seq { color: #48484a; font-size: 0.95rem; }
-        .eta-time { color: #e1251b; font-size: 1.2rem; }
-        .btn-refresh {
-            width: 100%; background-color: #007aff; color: white; border: none; padding: 14px;
-            border-radius: 14px; font-size: 1.1rem; font-weight: 600; cursor: pointer;
-        }
-        .last-update { text-align: center; font-size: 0.8rem; color: #aeaeae; margin-top: 15px; }
-        .loading { color: #8e8e93; text-align: center; padding: 15px 0; font-style: italic; }
-        .status-bar { text-align: center; font-size: 0.7rem; color: #c7c7cc; margin-top: 5px; }
+        body { font-family: -apple-system, sans-serif; background: #f2f2f7; padding: 20px; color: #1c1c1e; }
+        .box { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); max-width: 500px; margin: 0 auto; }
+        h2 { font-size: 1.2rem; text-align: center; margin-bottom: 15px; color: #e1251b; }
+        .stop-item { padding: 12px; border-bottom: 1px solid #e5e5ea; font-size: 0.95rem; display: flex; justify-content: space-between; }
+        .stop-item:last-child { border: none; }
+        .num { color: #8e8e93; font-weight: bold; margin-right: 10px; }
+        .name { font-weight: 600; color: #007aff; }
+        .id { font-family: monospace; color: #48484a; font-size: 0.8rem; background: #f8f8fa; padding: 2px 6px; border-radius: 4px; }
+        .loading { text-align: center; color: #8e8e93; font-style: italic; padding: 20px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="card">
-        <div class="route-header">
-            <div class="route-badge">238X</div>
-            <div class="direction-text"><span>💼 返工</span>往 尖沙咀／中港碼頭</div>
-        </div>
-        <div class="stop-name">📍 偵測站：深水埗黃竹街</div>
-        <div class="eta-list" id="eta-wf">
-            <div class="loading">全線雷達掃描中...</div>
-        </div>
+<div class="box">
+    <h2>🔍 238X 往尖沙咀·官方後台車站清單</h2>
+    <div id="main-list">
+        <div class="loading">正在向九巴總部抓取真實車站清單...</div>
     </div>
-
-    <div class="card">
-        <div class="route-header">
-            <div class="route-badge" style="background-color: #48484a;">238X</div>
-            <div class="direction-text"><span>🏠 收工</span>往 荃灣海濱花園</div>
-        </div>
-        <div class="stop-name" style="color: #48484a; background: #e5e5ea;">開出站：中港碼頭總站</div>
-        <div class="eta-list" id="eta-sh">
-            <div class="loading">正在連線九巴...</div>
-        </div>
-    </div>
-
-    <button class="btn-refresh" onclick="refreshAll()">🔄 立即更新班次</button>
-    <div class="last-update" id="time-tag">準備獲取數據...</div>
-    <div class="status-bar" id="status-tag">系統啟動中...</div>
 </div>
 
 <script>
-    // 黃竹街站可能對應的三個疑似 ID，一次過全部掃描！
-    const yellowStops = [
-        "1EA4E5F522432BD1",
-        "7A1D54F5E68C697A",
-        "4995BA92A1BB4716"
-    ];
-    const stopSH = "0E79796033A0372F"; // 中港碼頭
-
-    function scanWongChukStreet() {
-        const box = document.getElementById('eta-wf');
-        const status = document.getElementById('status-tag');
-        box.innerHTML = '';
+    // 直接調取九巴 238X 往尖沙咀 (Outbound) 的正統車站路線發展史
+    fetch("https://data.etabus.gov.hk/v1/transport/kmb/route-stop/238X/outbound/1")
+    .then(r => r.json())
+    .then(routeData => {
+        const stops = routeData.data || [];
         
-        let foundAny = false;
-        let promises = [];
-
-        // 暴力向九巴查詢這三個 ID 的所有路線（不限方向）
-        yellowStops.forEach(id => {
-            const url = "https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/" + id;
-            promises.push(
-                fetch(url)
-                    .then(r => r.json())
-                    .then(res => {
-                        if (res.data) {
-                            // 篩選出任何路線是 238X 且有時間的班次
-                            const matches = res.data.filter(b => b.route === "238X" && b.eta);
-                            matches.forEach(bus => {
-                                foundAny = true;
-                                const diff = Math.max(0, Math.round((new Date(bus.eta) - new Date()) / 60000));
-                                let showMins = diff <= 0 ? "即將抵達" : diff + " 分鐘";
-                                
-                                const div = document.createElement('div');
-                                div.className = 'eta-item';
-                                div.innerHTML = '<div><span class="eta-seq">往' + (bus.dir === 'O' ? '尖沙咀' : '荃灣') + '</span></div><span class="eta-time">' + showMins + '</span>';
-                                box.appendChild(div);
-                            });
-                        }
-                    })
-            );
-        });
-
-        Promise.all(promises).then(() => {
-            if (!foundAny) {
-                box.innerHTML = '<div class="loading">⌛ 黃竹街站無 238X 班次 (或需稍後重試)</div>';
-            }
-            status.innerText = "雷達掃描完畢";
-        }).catch(err => {
-            status.innerText = "掃描出錯";
-        });
-    }
-
-    function updateTerminus(url, containerId) {
-        const box = document.getElementById(containerId);
-        fetch(url)
-            .then(r => r.json())
-            .then(res => {
-                const list = res.data ? res.data.filter(b => b.eta) : [];
-                box.innerHTML = '';
-                if (list.length === 0) {
-                    box.innerHTML = '<div class="loading">⌛ 暫無實時班次</div>';
-                    return;
-                }
-                list.sort((a, b) => new Date(a.eta) - new Date(b.eta));
-                list.slice(0, 3).forEach((bus, i) => {
-                    const diff = Math.max(0, Math.round((new Date(bus.eta) - new Date()) / 60000));
-                    let showMins = diff <= 0 ? "即將開出" : diff + " 分鐘";
-                    const div = document.createElement('div');
-                    div.className = 'eta-item';
-                    div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span></div><span class="eta-time">' + showMins + '</span>';
-                    box.appendChild(div);
+        // 獲取所有車站的詳細中英文名稱對照
+        fetch("https://data.etabus.gov.hk/v1/transport/kmb/stop")
+        .then(r => r.json())
+        .then(stopData => {
+            const allStopsMap = {};
+            if(stopData.data) {
+                stopData.data.forEach(s => {
+                    allStopsMap[s.stop] = s.name_tc;
                 });
+            }
+
+            const listContainer = document.getElementById('main-list');
+            listContainer.innerHTML = '';
+
+            if(stops.length === 0) {
+                listContainer.innerHTML = '<div class="loading">❌ 無法取得九巴路線數據</div>';
+                return;
+            }
+
+            // 完美的把 238X 往尖沙咀的所有車站依序排印出來
+            stops.forEach((item, index) => {
+                const stopName = allStopsMap[item.stop] || "未知車站";
+                const div = document.createElement('div');
+                div.className = 'stop-item';
+                div.innerHTML = `
+                    <div>
+                        <span class="num">${index + 1}</span>
+                        <span class="name">${stopName}</span>
+                    </div>
+                    <span class="id">${item.stop}</span>
+                `;
+                listContainer.appendChild(div);
             });
-    }
-
-    function refreshAll() {
-        scanWongChukStreet();
-        updateTerminus("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopSH + "/238X/I", "eta-sh");
-        document.getElementById('time-tag').innerText = "最後更新: " + new Date().toLocaleTimeString();
-    }
-
-    refreshAll();
-    setInterval(refreshAll, 10000);
+        });
+    })
+    .catch(err => {
+        document.getElementById('main-list').innerHTML = '<div class="loading">❌ 網絡連線失敗</div>';
+    });
 </script>
 
 </body>
