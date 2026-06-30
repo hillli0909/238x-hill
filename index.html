@@ -32,16 +32,15 @@
             background: #f8f8fa; border-radius: 12px; padding: 14px 18px; font-size: 1.1rem; font-weight: 700;
             display: flex; justify-content: space-between; align-items: center; border: 1px solid #f2f2f7;
         }
-        .eta-seq { color: #48484a; font-size: 0.95rem; }
-        .eta-time { color: #e1251b; font-size: 1.2rem; }
+        .eta-seq { color: #48484a; font-size: 0.95rem; text-align: left; }
+        .eta-time { color: #e1251b; font-size: 1.2rem; text-align: right; }
         .btn-refresh {
             width: 100%; background-color: #007aff; color: white; border: none; padding: 14px;
             border-radius: 14px; font-size: 1.1rem; font-weight: 600; cursor: pointer;
         }
         .last-update { text-align: center; font-size: 0.8rem; color: #aeaeae; margin-top: 15px; }
-        .loading { color: #8e8e93; text-align: center; padding: 15px 0; font-style: italic; }
         .status-bar { text-align: center; font-size: 0.7rem; color: #c7c7cc; margin-top: 5px; }
-        .backup-badge { font-size: 0.75rem; color: #ff9500; font-weight: normal; display: block; margin-top: 2px; }
+        .sub-time { font-size: 0.8rem; color: #8e8e93; font-weight: normal; margin-top: 2px; display: block; }
     </style>
 </head>
 <body>
@@ -54,7 +53,7 @@
         </div>
         <div class="stop-name">📍 上車站：深水埗黃竹街</div>
         <div class="eta-list" id="eta-wf">
-            <div class="loading">正在獲取實時班次...</div>
+            <div class="loading">正在獲取班次...</div>
         </div>
     </div>
 
@@ -65,49 +64,31 @@
         </div>
         <div class="stop-name" style="color: #48484a; background: #e5e5ea;">開出站：中港碼頭總站</div>
         <div class="eta-list" id="eta-sh">
-            <div class="loading">正在獲取實時班次...</div>
+            <div class="loading">正在獲取班次...</div>
         </div>
     </div>
 
     <button class="btn-refresh" onclick="refreshAll()">🔄 立即更新班次</button>
     <div class="last-update" id="time-tag">準備獲取數據...</div>
-    <div class="status-bar" id="status-tag">智能雙模啟動中...</div>
+    <div class="status-bar" id="status-tag">智能雙模運作中</div>
 </div>
 
 <script>
     const stopWF = "833DE523F16B97C3";
     const stopSH = "0E79796033A0372F";
 
-    // 💡 官方 238X 核心日間班次間隔：
-    // 往尖沙咀：12-15分鐘一班 | 往荃灣：12-15分鐘一班
-    function getBackupTimetable(isReturn) {
+    // 💡 根據現時時間計算出原定班次嘅實體開出時間點
+    function getBackupTimetable() {
         const now = new Date();
         const currentMin = now.getMinutes();
-        const minsToNext = 12 - (currentMin % 12); // 用 12 分鐘一班進行保底模化計算
+        const minsToNext = 12 - (currentMin % 12);
         
-        return [
-            { mins: minsToNext },
-            { mins: minsToNext + 12 },
-            { mins: minsToNext + 24 }
-        ];
-    }
-
-    function renderList(list, box, isTerminus, isBackup) {
-        box.innerHTML = '';
-        list.sort((a, b) => new Date(a.eta) - new Date(b.eta));
-        const topThree = list.slice(0, 3);
-
-        topThree.forEach((bus, i) => {
-            const diff = Math.max(0, Math.round((new Date(bus.eta) - new Date()) / 60000));
-            let showMins = diff <= 0 ? (isTerminus ? "即將開出" : "即將抵達") : diff + " 分鐘";
-            
-            const div = document.createElement('div');
-            div.className = 'eta-item';
-            
-            let badgeText = isBackup ? '<span class="backup-badge">⚠️ 官方數據塞車·時刻表保底</span>' : '';
-            
-            div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span>' + badgeText + '</div><span class="eta-time">' + showMins + '</span>';
-            box.appendChild(div);
+        return [minsToNext, minsToNext + 12, minsToNext + 24].map(m => {
+            const t = new Date(now.getTime() + m * 60000);
+            return {
+                diff: m,
+                timeStr: t.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            };
         });
     }
 
@@ -119,41 +100,53 @@
             .then(response => response.json())
             .then(res => {
                 let list = res.data ? res.data.filter(b => b.eta) : [];
+                box.innerHTML = '';
                 
                 if (list.length === 0) {
-                    // 🚨 如果九巴後台斷線，立刻切換至「官方原定時刻表」保底！
-                    const backupData = getBackupTimetable(isTerminus);
-                    box.innerHTML = '';
-                    backupData.forEach((bus, i) => {
+                    // 🚨 九巴塞車時：自動轉換成「預計時間點」
+                    const backup = getBackupTimetable();
+                    backup.forEach((bus, i) => {
                         const div = document.createElement('div');
                         div.className = 'eta-item';
-                        div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="backup-badge">⚠️ 九巴斷線·原定班次倒數</span></div><span class="eta-time">' + bus.mins + ' 分鐘</span>';
+                        div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="sub-time">預計時間 ' + bus.timeStr + '</span></div><span class="eta-time">' + bus.diff + ' 分鐘</span>';
                         box.appendChild(div);
                     });
-                    status.innerText = "九巴後台斷線，已啟動原定班次保底";
+                    status.innerText = "已轉換原定班次時刻";
                 } else {
-                    renderList(list, box, isTerminus, false);
-                    status.innerText = "九巴官方直連成功";
+                    // ✅ 九巴正常時：顯示實時 GPS 時間
+                    list.sort((a, b) => new Date(a.eta) - new Date(b.eta));
+                    list.slice(0, 3).forEach((bus, i) => {
+                        const etaTime = new Date(bus.eta);
+                        const diff = Math.max(0, Math.round((etaTime - now) / 60000));
+                        let showMins = diff <= 0 ? (isTerminus ? "即將開出" : "即將抵達") : diff + " 分鐘";
+                        const timeStr = etaTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        
+                        const div = document.createElement('div');
+                        div.className = 'eta-item';
+                        div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="sub-time">預計抵達 ' + timeStr + '</span></div><span class="eta-time">' + showMins + '</span>';
+                        box.appendChild(div);
+                    });
+                    status.innerText = "九巴官方實時直連";
                 }
             })
-            .catch(err => {
-                // 連線失敗也用時刻表保底
-                const backupData = getBackupTimetable(isTerminus);
+            .catch(() => {
+                // 連線失敗時的保底
                 box.innerHTML = '';
-                backupData.forEach((bus, i) => {
+                getBackupTimetable().forEach((bus, i) => {
                     const div = document.createElement('div');
                     div.className = 'eta-item';
-                    div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="backup-badge">⚠️ 網絡連線中·原定班次倒數</span></div><span class="eta-time">' + bus.mins + ' 分鐘</span>';
+                    div.innerHTML = '<div><span class="eta-seq">下第 ' + (i+1) + ' 班車</span><span class="sub-time">預計時間 ' + bus.timeStr + '</span></div><span class="eta-time">' + bus.diff + ' 分鐘</span>';
                     box.appendChild(div);
                 });
-                status.innerText = "網絡波動，已啟動定時倒數";
+                status.innerText = "網絡波動，已切換定時倒數";
             });
     }
 
     function refreshAll() {
+        window.now = new Date(); // 全局動態對齊時間
         updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopWF + "/238X/O", "eta-wf", false);
         updateCard("https://data.etabus.gov.hk/v1/transport/kmb/eta/" + stopSH + "/238X/I", "eta-sh", true);
-        document.getElementById('time-tag').innerText = "最後更新: " + new Date().toLocaleTimeString();
+        document.getElementById('time-tag').innerText = "最後更新: " + now.toLocaleTimeString();
     }
 
     refreshAll();
